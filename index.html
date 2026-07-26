@@ -596,17 +596,27 @@
                     installation.remove('channels', `game_${gamePk}`);
                     await installation.save();
                 } catch (err) {
-                    console.error('Error removing push channel from Back4App:', err);
+                    console.error('Error removing push channel:', err);
                 }
             } else {
+                if (!('Notification' in window)) {
+                    alert('Notifications are not supported on this browser.');
+                    return;
+                }
+
                 const permission = await Notification.requestPermission();
                 if (permission !== 'granted') {
-                    alert('Notification permission is required to enable game alerts.');
+                    alert('Notification permission was denied. On iPad, make sure you open the app from your Home Screen!');
                     return;
                 }
 
                 if (!swRegistration) {
                     await initPushServiceWorker();
+                }
+
+                if (!swRegistration || !swRegistration.pushManager) {
+                    alert('Push notifications require this web app to be added to your iPad Home Screen.');
+                    return;
                 }
 
                 try {
@@ -615,20 +625,24 @@
                         applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
                     });
 
+                    const subscriptionJSON = JSON.stringify(subscription);
                     const installation = await Parse.Installation.current();
+                    
                     installation.set('deviceType', 'web');
                     installation.set('pushType', 'WEB');
                     installation.set('deviceToken', subscription.endpoint);
-                    installation.set('subscription', JSON.stringify(subscription));
+                    installation.set('subscription', subscriptionJSON);
                     installation.addUnique('channels', `game_${gamePk}`);
+
                     await installation.save();
 
                     alertGames.add(gamePk);
                     btn.classList.add('active');
                     icon.className = 'fa-solid fa-bell';
+                    alert('Notifications enabled for this game!');
                 } catch (err) {
-                    console.error('Error registering web push with Back4App:', err);
-                    alert('Failed to register push notifications.');
+                    console.error('Push Registration Error:', err);
+                    alert('Push error: ' + (err.message || 'Make sure web page is hosted via HTTPS and added to Home Screen.'));
                 }
             }
         }
