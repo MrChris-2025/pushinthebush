@@ -10,12 +10,15 @@ self.addEventListener('push', function(event) {
     }
   }
 
+  // Parse Back4App 'alert' property or standard 'body'
   const title = data.title || 'MLB Game Alert';
+  const bodyText = data.body || data.alert || 'New play update on your tracked game!';
+
   const options = {
-    body: data.body || 'New play update on your tracked game!',
-    icon: 'https://www.mlbstatic.com/team-logos/league-on-dark/1.svg',
-    badge: 'https://www.mlbstatic.com/team-logos/league-on-dark/1.svg',
-    vibrate: [100, 50, 100],
+    body: bodyText,
+    // Use PNG/JPG icons instead of SVG for iOS compatibility
+    icon: '/icon-192.png', 
+    badge: '/icon-192.png',
     data: {
       gamePk: data.gamePk || null,
       url: '/'
@@ -34,7 +37,7 @@ self.addEventListener('notificationclick', function(event) {
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(clientList) {
       for (let i = 0; i < clientList.length; i++) {
         let client = clientList[i];
-        if (client.url === '/' && 'focus' in client) {
+        if ('focus' in client) {
           return client.focus();
         }
       }
