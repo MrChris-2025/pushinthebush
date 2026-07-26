@@ -35,7 +35,6 @@
             min-height: 100vh;
         }
 
-        /* Header */
         header {
             background-color: var(--primary);
             color: white;
@@ -67,7 +66,6 @@
             align-items: flex-start;
         }
 
-        /* Sticky Inline Calendar Widget */
         .calendar-widget {
             background: #2d2d2d;
             color: white;
@@ -406,10 +404,9 @@
     </main>
 
     <script>
-        // --- Back4App / Parse Configuration ---
         Parse.initialize(
-            "ywszDC1i76wN2JuMWK5xqJkfO1YMtP47Qe6zy9QD", // Application ID
-            "sLD0pWbjPJWWuUd6KBlQxrrSG8pT5U5qDPdL2T3U"  // JavaScript Key
+            "ywszDC1i76wN2JuMWK5xqJkfO1YMtP47Qe6zy9QD",
+            "sLD0pWbjPJWWuUd6KBlQxrrSG8pT5U5qDPdL2T3U"
         );
         Parse.serverURL = "https://parseapi.back4app.com/";
 
@@ -422,8 +419,12 @@
         let countdownInterval = null;
         let autoPollInterval = null;
         let pinnedGames = new Set();
-        let alertGames = new Set();
+        let alertGames = new Set(JSON.parse(localStorage.getItem('subscribedAlertGames') || '[]'));
         let swRegistration = null;
+
+        function saveAlertGamesState() {
+            localStorage.setItem('subscribedAlertGames', JSON.stringify(Array.from(alertGames)));
+        }
 
         async function initPushServiceWorker() {
             if ('serviceWorker' in navigator && 'PushManager' in window) {
@@ -588,6 +589,8 @@
 
             if (alertGames.has(gamePk)) {
                 alertGames.delete(gamePk);
+                saveAlertGamesState();
+
                 btn.classList.remove('active');
                 icon.className = 'fa-regular fa-bell';
 
@@ -632,7 +635,6 @@
 
                     const subscriptionJSON = JSON.stringify(subscription);
                     
-                    // Standard Parse Object creation for _Installation
                     const Installation = Parse.Object.extend("_Installation");
                     const installation = new Installation();
                     
@@ -645,6 +647,8 @@
                     await installation.save();
 
                     alertGames.add(gamePk);
+                    saveAlertGamesState();
+
                     btn.classList.add('active');
                     icon.className = 'fa-solid fa-bell';
                     alert('Notifications enabled for this game!');
