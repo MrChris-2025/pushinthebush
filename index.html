@@ -592,9 +592,14 @@
                 icon.className = 'fa-regular fa-bell';
 
                 try {
-                    const installation = await Parse.Installation.current();
-                    installation.remove('channels', `game_${gamePk}`);
-                    await installation.save();
+                    const query = new Parse.Query("_Installation");
+                    query.equalTo("channels", `game_${gamePk}`);
+                    const results = await query.find();
+                    if (results.length > 0) {
+                        const installation = results[0];
+                        installation.remove('channels', `game_${gamePk}`);
+                        await installation.save();
+                    }
                 } catch (err) {
                     console.error('Error removing push channel:', err);
                 }
@@ -626,7 +631,10 @@
                     });
 
                     const subscriptionJSON = JSON.stringify(subscription);
-                    const installation = await Parse.Installation.current();
+                    
+                    // Standard Parse Object creation for _Installation
+                    const Installation = Parse.Object.extend("_Installation");
+                    const installation = new Installation();
                     
                     installation.set('deviceType', 'web');
                     installation.set('pushType', 'WEB');
