@@ -1,0 +1,885 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MLB Dashboard</title>
+    <link rel="manifest" href="/manifest.json">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="apple-touch-icon" sizes="512x512" href="https://hcforever.nekoweb.org/mo2.png">
+    <script src="https://npmcdn.com/parse/dist/parse.min.js"></script>
+    <style>
+        :root {
+            --primary: #002D62;
+            --secondary: #BA0C2F;
+            --bg: #f4f6f8;
+            --card-bg: #ffffff;
+            --text: #333333;
+            --border: #e0e0e0;
+            --base-active: #ffd700;
+            --base-inactive: #444444;
+            --icon-active: #0072ce;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        header {
+            background-color: var(--primary);
+            color: white;
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        header h1 {
+            font-size: 1.5rem;
+        }
+
+        main {
+            padding: 2rem;
+            max-width: 1200px;
+            margin: 0 auto;
+            width: 100%;
+            flex: 1;
+        }
+
+        .schedule-layout {
+            display: flex;
+            gap: 2rem;
+            align-items: flex-start;
+        }
+
+        .calendar-widget {
+            background: #2d2d2d;
+            color: white;
+            border-radius: 12px;
+            padding: 1rem;
+            width: 320px;
+            flex-shrink: 0;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            transition: all 0.3s ease;
+            position: sticky;
+            top: 5rem;
+            z-index: 10;
+        }
+
+        .calendar-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .calendar-title {
+            font-weight: bold;
+            font-size: 1.1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .nav-arrow {
+            background: none;
+            border: none;
+            color: #0088ff;
+            font-size: 1.2rem;
+            cursor: pointer;
+            padding: 0 0.5rem;
+        }
+
+        .toggle-btn {
+            background: #444;
+            color: #fff;
+            border: none;
+            padding: 0.3rem 0.6rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.8rem;
+        }
+
+        .toggle-btn:hover {
+            background: #555;
+        }
+
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 4px;
+            text-align: center;
+        }
+
+        .calendar-grid div {
+            padding: 8px 0;
+            font-size: 0.85rem;
+            border-radius: 50%;
+        }
+
+        .day-label {
+            color: #888;
+            font-weight: bold;
+        }
+
+        .day-number {
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .day-number:hover {
+            background: #444;
+        }
+
+        .day-number.selected {
+            background: #0072ce;
+            color: white;
+            font-weight: bold;
+        }
+
+        .day-number.empty {
+            cursor: default;
+        }
+
+        .calendar-widget.minimized .calendar-body {
+            display: none;
+        }
+
+        .calendar-widget.minimized {
+            width: auto;
+            padding: 0.75rem 1rem;
+        }
+
+        .games-container {
+            flex: 1;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1.25rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        .game-card {
+            transition: transform 0.2s, box-shadow 0.2s, filter 0.2s;
+            position: relative;
+        }
+
+        .game-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+
+        .game-card.pinned {
+            border: 2px solid var(--icon-active);
+            box-shadow: 0 4px 10px rgba(0, 114, 206, 0.15);
+        }
+
+        .game-card.final {
+            background-color: #f0f0f0;
+            opacity: 0.75;
+            filter: grayscale(40%);
+        }
+
+        .game-card.final:hover {
+            filter: grayscale(0%);
+            opacity: 1;
+        }
+
+        .game-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 0.5rem;
+            margin-bottom: 0.75rem;
+            font-size: 0.85rem;
+        }
+
+        .game-header-left {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .game-header-right {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .game-status-badge {
+            font-weight: bold;
+            color: var(--secondary);
+        }
+
+        .game-card.final .game-status-badge {
+            color: #666;
+        }
+
+        .game-countdown {
+            font-size: 0.75rem;
+            color: #0072ce;
+            font-weight: 600;
+        }
+
+        .game-actions {
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+        }
+
+        .icon-btn {
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            color: #888;
+            padding: 4px;
+            font-size: 1rem;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: color 0.2s, transform 0.1s;
+            border-radius: 50%;
+        }
+
+        .icon-btn:hover {
+            color: #111;
+            transform: scale(1.15);
+        }
+
+        .icon-btn.active {
+            color: var(--icon-active);
+        }
+
+        .game-live-details {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            font-size: 0.8rem;
+        }
+
+        .count-details {
+            color: #444;
+            font-weight: 600;
+        }
+
+        .bases-diamond {
+            position: relative;
+            width: 24px;
+            height: 24px;
+        }
+
+        .base {
+            position: absolute;
+            width: 7px;
+            height: 7px;
+            background-color: var(--base-inactive);
+            transform: rotate(45deg);
+        }
+
+        .base.on {
+            background-color: var(--base-active);
+            box-shadow: 0 0 3px rgba(0,0,0,0.5);
+        }
+
+        .base-second { top: 1px; left: 8.5px; }
+        .base-third  { top: 8.5px; left: 1px; }
+        .base-first  { top: 8.5px; right: 1px; }
+
+        .team-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin: 0.5rem 0;
+        }
+
+        .team-info {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .team-logo {
+            width: 36px;
+            height: 36px;
+            object-fit: contain;
+        }
+
+        .team-details {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .team-name {
+            font-size: 1rem;
+            font-weight: bold;
+            color: var(--text);
+        }
+
+        .team-record {
+            font-size: 0.75rem;
+            color: #666;
+        }
+
+        .team-score {
+            font-size: 1.25rem;
+            font-weight: bold;
+        }
+
+        @media (max-width: 768px) {
+            .schedule-layout {
+                flex-direction: column;
+            }
+            .calendar-widget {
+                width: 100%;
+                position: relative;
+                top: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>MLB Dashboard</h1>
+    </header>
+
+    <main>
+        <section id="view-schedule">
+            <div class="schedule-layout">
+                <div id="calendar-widget" class="calendar-widget">
+                    <div class="calendar-header">
+                        <div class="calendar-title">
+                            <span id="cal-month-year"></span>
+                            <span id="cal-navs">
+                                <button class="nav-arrow" onclick="changeMonth(-1)">&lt;</button>
+                                <button class="nav-arrow" onclick="changeMonth(1)">&gt;</button>
+                            </span>
+                        </div>
+                        <button class="toggle-btn" id="min-btn" onclick="toggleCalendar()">Minimize</button>
+                    </div>
+
+                    <div class="calendar-body">
+                        <div class="calendar-grid">
+                            <div class="day-label">SUN</div>
+                            <div class="day-label">MON</div>
+                            <div class="day-label">TUE</div>
+                            <div class="day-label">WED</div>
+                            <div class="day-label">THU</div>
+                            <div class="day-label">FRI</div>
+                            <div class="day-label">SAT</div>
+                        </div>
+                        <div id="calendar-days" class="calendar-grid" style="margin-top: 5px;"></div>
+                    </div>
+                </div>
+
+                <div class="games-container">
+                    <div id="schedule-container" class="grid">Loading games...</div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        /* ---------- Parse & API init ---------- */
+        Parse.initialize(
+            "ywszDC1i76wN2JuMWK5xqJkfO1YMtP47Qe6zy9QD",
+            "sLD0pWbjPJWWuUd6KBlQxrrSG8pT5U5qDPdL2T3U"
+        );
+        Parse.serverURL = "https://parseapi.back4app.com/";
+
+        const VAPID_PUBLIC_KEY = "BGUzkLiSemAIlhdNCJWDxARVhPDZRfPhZIsyvtoxOQde-1SCPGOGTpP6b9qtyhNS5oIYq2RpDwu538vXCIdZr6o";
+        const BASE_URL = 'https://statsapi.mlb.com/api/v1';
+
+        let selectedDate = new Date();
+        let currentDisplayDate = new Date();
+        let isMinimized = false;
+        let countdownInterval = null;
+        let autoPollInterval = null;
+        let pinnedGames = new Set();
+        let alertGames = new Set(JSON.parse(localStorage.getItem('subscribedAlertGames') || '[]'));
+        let swRegistration = null;
+
+        function saveAlertGamesState() {
+            localStorage.setItem('subscribedAlertGames', JSON.stringify(Array.from(alertGames)));
+        }
+
+        /* ---------- Service Worker & Push ---------- */
+        async function initPushServiceWorker() {
+            if ('serviceWorker' in navigator && 'PushManager' in window) {
+                try {
+                    swRegistration = await navigator.serviceWorker.register('/sw.js');
+                } catch (error) {
+                    console.error('Service Worker Registration Error:', error);
+                }
+            }
+        }
+
+        function urlBase64ToUint8Array(base64String) {
+            const padding = '='.repeat((4 - base64String.length % 4) % 4);
+            const base64 = (base64String + padding).replace(/\-/g, '+').replace(/_/g, '/');
+            const rawData = window.atob(base64);
+            const outputArray = new Uint8Array(rawData.length);
+            for (let i = 0; i < rawData.length; ++i) {
+                outputArray[i] = rawData.charCodeAt(i);
+            }
+            return outputArray;
+        }
+
+        /* ---------- Calendar rendering ---------- */
+        function initCalendar() {
+            renderCalendar();
+            fetchSchedule();
+            initPushServiceWorker();
+
+            if (autoPollInterval) clearInterval(autoPollInterval);
+            autoPollInterval = setInterval(silentUpdateSchedule, 15000);
+        }
+
+        function renderCalendar() {
+            const year = currentDisplayDate.getFullYear();
+            const month = currentDisplayDate.getMonth();
+
+            const monthNames = ["January", "February", "March", "April", "May", "June",
+                "July", "August", "September", "October", "November", "December"];
+
+            document.getElementById('cal-month-year').innerText = `${monthNames[month]} ${year}`;
+
+            const firstDay = new Date(year, month, 1).getDay();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+            const daysContainer = document.getElementById('calendar-days');
+            daysContainer.innerHTML = '';
+
+            for (let i = 0; i < firstDay; i++) {
+                const empty = document.createElement('div');
+                empty.className = 'day-number empty';
+                daysContainer.appendChild(empty);
+            }
+
+            for (let day = 1; day <= daysInMonth; day++) {
+                const dayEl = document.createElement('div');
+                dayEl.className = 'day-number';
+                dayEl.innerText = day;
+
+                if (day === selectedDate.getDate() && 
+                    month === selectedDate.getMonth() && 
+                    year === selectedDate.getFullYear()) {
+                    dayEl.classList.add('selected');
+                }
+
+                dayEl.onclick = () => {
+                    selectedDate = new Date(year, month, day);
+                    renderCalendar();
+                    fetchSchedule();
+                };
+
+                daysContainer.appendChild(dayEl);
+            }
+        }
+
+        function changeMonth(delta) {
+            currentDisplayDate.setMonth(currentDisplayDate.getMonth() + delta);
+            renderCalendar();
+        }
+
+        function toggleCalendar() {
+            const widget = document.getElementById('calendar-widget');
+            const btn = document.getElementById('min-btn');
+            const navs = document.getElementById('cal-navs');
+
+            isMinimized = !isMinimized;
+            if (isMinimized) {
+                widget.classList.add('minimized');
+                btn.innerText = 'Expand';
+                navs.style.display = 'none';
+            } else {
+                widget.classList.remove('minimized');
+                btn.innerText = 'Minimize';
+                navs.style.display = 'inline';
+            }
+        }
+
+        /* ---------- Helper utilities ---------- */
+        function formatDateString(date) {
+            const yyyy = date.getFullYear();
+            const mm = String(date.getMonth() + 1).padStart(2, '0');
+            const dd = String(date.getDate()).padStart(2, '0');
+            return `${yyyy}-${mm}-${dd}`;
+        }
+
+        function getTeamLogoUrl(teamId) {
+            return `https://www.mlbstatic.com/team-logos/${teamId}.svg`;
+        }
+
+        function getGameHeaderInfo(game) {
+            const status = game.status;
+            const linescore = game.linescore;
+            const gameDate = new Date(game.gameDate);
+
+            if (status.abstractGameState === 'Final') {
+                return { badge: 'Final', countdown: '', isFinal: true };
+            }
+
+            if (status.abstractGameState === 'Preview') {
+                const timeString = gameDate.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+                return { badge: timeString, countdownTarget: gameDate.getTime(), isPreview: true };
+            }
+
+            if (linescore && linescore.currentInning) {
+                const state = linescore.isTopInning ? 'Top' : 'Bot';
+                const inningStr = `${state} ${linescore.currentInningOrdinal || linescore.currentInning}`;
+                return { badge: inningStr, countdown: '', isLive: true };
+            }
+
+            return { badge: status.detailedState || '', countdown: '' };
+        }
+
+        /* ---------- Pinning games ---------- */
+        function togglePin(e, gamePk) {
+            e.stopPropagation();
+            const card = document.getElementById(`game-card-${gamePk}`);
+            const btn = e.currentTarget;
+
+            if (pinnedGames.has(gamePk)) {
+                pinnedGames.delete(gamePk);
+                card.classList.remove('pinned');
+                btn.classList.remove('active');
+            } else {
+                pinnedGames.add(gamePk);
+                card.classList.add('pinned');
+                btn.classList.add('active');
+            }
+
+            const container = document.getElementById('schedule-container');
+            const cards = Array.from(container.children);
+            cards.sort((a, b) => {
+                const aPk = parseInt(a.id.replace('game-card-', ''), 10);
+                const bPk = parseInt(b.id.replace('game-card-', ''), 10);
+                const aPinned = pinnedGames.has(aPk) ? 1 : 0;
+                const bPinned = pinnedGames.has(bPk) ? 1 : 0;
+                return bPinned - aPinned;
+            });
+
+            cards.forEach(c => container.appendChild(c));
+        }
+
+        /* ---------- Push alerts (fixed) ---------- */
+        async function togglePushAlert(e, gamePk) {
+            e.stopPropagation();
+            const btn = e.currentTarget;
+            const icon = btn.querySelector('i');
+
+            // If already subscribed → unsubscribe
+            if (alertGames.has(gamePk)) {
+                alertGames.delete(gamePk);
+                saveAlertGamesState();
+
+                btn.classList.remove('active');
+                icon.className = 'fa-regular fa-bell';
+
+                try {
+                    // Use the current installation (the one that created the subscription)
+                    const installation = await Parse.Installation.current();
+                    if (installation) {
+                        installation.remove('channels', `game_${gamePk}`);
+                        await installation.save();
+                    }
+                } catch (err) {
+                    console.error('Error removing push channel:', err);
+                }
+                return;
+            }
+
+            // Subscribe flow
+            if (!('Notification' in window)) {
+                alert('Notifications are not supported on this browser.');
+                return;
+            }
+
+            const permission = await Notification.requestPermission();
+            if (permission !== 'granted') {
+                alert('Notification permission was denied. On iPad, make sure you open the app from your Home Screen!');
+                return;
+            }
+
+            if (!swRegistration) {
+                await initPushServiceWorker();
+            }
+
+            if (!swRegistration || !swRegistration.pushManager) {
+                alert('Push notifications require this web app to be added to your iPad Home Screen.');
+                return;
+            }
+
+            try {
+                const subscription = await swRegistration.pushManager.subscribe({
+                    userVisibleOnly: true,
+                    applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+                });
+
+                const subscriptionJSON = JSON.stringify(subscription);
+                const Installation = Parse.Object.extend("_Installation");
+                const installation = new Installation();
+
+                installation.set('deviceType', 'web');
+                installation.set('pushType', 'WEB');
+                installation.set('deviceToken', subscription.endpoint);
+                installation.set('subscription', subscriptionJSON);
+                installation.addUnique('channels', `game_${gamePk}`);
+
+                await installation.save();
+
+                alertGames.add(gamePk);
+                saveAlertGamesState();
+
+                btn.classList.add('active');
+                icon.className = 'fa-solid fa-bell';
+                alert('Notifications enabled for this game!');
+            } catch (err) {
+                console.error('Push Registration Error:', err);
+                alert('Push error: ' + (err.message || 'Make sure web page is hosted via HTTPS and added to Home Screen.'));
+            }
+        }
+
+        /* ---------- Countdown handling ---------- */
+        function startCountdowns() {
+            if (countdownInterval) clearInterval(countdownInterval);
+
+            countdownInterval = setInterval(() => {
+                const now = new Date().getTime();
+                document.querySelectorAll('.game-countdown[data-time]').forEach(el => {
+                    const targetTime = parseInt(el.getAttribute('data-time'), 10);
+                    const diff = targetTime - now;
+
+                    if (diff <= 0) {
+                        el.innerText = 'Starts soon';
+                    } else {
+                        const hours = Math.floor(diff / (1000 * 60 * 60));
+                        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+                        const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+                        if (hours > 0) {
+                            el.innerText = `Starts in ${hours}h ${minutes}m`;
+                        } else {
+                            el.innerText = `Starts in ${minutes}m ${seconds}s`;
+                        }
+                    }
+                });
+            }, 1000);
+        }
+
+        /* ---------- Silent schedule update ---------- */
+        async function silentUpdateSchedule() {
+            const formattedDate = formatDateString(selectedDate);
+            try {
+                const response = await fetch(`${BASE_URL}/schedule?sportId=1&date=${formattedDate}&hydrate=linescore,team`);
+                const data = await response.json();
+                const games = data.dates[0]?.games || [];
+
+                games.forEach(game => {
+                    const card = document.getElementById(`game-card-${game.gamePk}`);
+                    if (!card) return;
+
+                    const linescore = game.linescore;
+                    const isLive = game.status.abstractGameState === 'Live';
+                    const headerInfo = getGameHeaderInfo(game);
+
+                    const badgeEl = card.querySelector('.game-status-badge');
+                    if (badgeEl && badgeEl.innerText !== headerInfo.badge) {
+                        badgeEl.innerText = headerInfo.badge;
+                    }
+
+                    if (headerInfo.isFinal) {
+                        card.classList.add('final');
+                    }
+
+                    const scores = card.querySelectorAll('.team-score');
+                    if (scores.length === 2) {
+                        const awayScore = game.teams.away.score ?? '-';
+                        const homeScore = game.teams.home.score ?? '-';
+                        if (scores[0].innerText !== String(awayScore)) scores[0].innerText = awayScore;
+                        if (scores[1].innerText !== String(homeScore)) scores[1].innerText = homeScore;
+                    }
+
+                    const detailsContainer = card.querySelector('.game-live-details');
+                    if (detailsContainer && isLive && linescore) {
+                        const balls = linescore.balls ?? 0;
+                        const strikes = linescore.strikes ?? 0;
+                        const outs = linescore.outs ?? 0;
+
+                        const onFirst = linescore.offense?.first ? 'on' : '';
+                        const onSecond = linescore.offense?.second ? 'on' : '';
+                        const onThird = linescore.offense?.third ? 'on' : '';
+
+                        detailsContainer.innerHTML = `
+                            <span class="count-details">Balls: ${balls} Strikes: ${strikes}</span>
+                            <span>${outs} Out${outs !== 1 ? 's' : ''}</span>
+                            <div class="bases-diamond" title="Runners on base">
+                                <div class="base base-second ${onSecond}"></div>
+                                <div class="base base-third ${onThird}"></div>
+                                <div class="base base-first ${onFirst}"></div>
+                            </div>
+                        `;
+                    }
+                });
+            } catch (err) {
+                // Silent catch – keep UI stable
+            }
+        }
+
+        /* ---------- Full schedule fetch ---------- */
+        async function fetchSchedule() {
+            if (countdownInterval) clearInterval(countdownInterval);
+
+            const formattedDate = formatDateString(selectedDate);
+            const container = document.getElementById('schedule-container');
+            container.innerHTML = 'Loading games...';
+
+            try {
+                const response = await fetch(`${BASE_URL}/schedule?sportId=1&date=${formattedDate}&hydrate=linescore,team`);
+                const data = await response.json();
+
+                container.innerHTML = '';
+                let games = data.dates[0]?.games || [];
+
+                if (games.length === 0) {
+                    container.innerHTML = `<p>No games scheduled for ${formattedDate}.</p>`;
+                    return;
+                }
+
+                // Pinning order
+                games.sort((a, b) => {
+                    const aPinned = pinnedGames.has(a.gamePk) ? 1 : 0;
+                    const bPinned = pinnedGames.has(b.gamePk) ? 1 : 0;
+                    return bPinned - aPinned;
+                });
+
+                games.forEach(game => {
+                    const card = document.createElement('div');
+                    card.id = `game-card-${game.gamePk}`;
+
+                    const awayTeam = game.teams.away;
+                    const homeTeam = game.teams.home;
+                    const linescore = game.linescore;
+
+                    const awayScore = awayTeam.score ?? '-';
+                    const homeScore = homeTeam.score ?? '-';
+
+                    const awayRecord = awayTeam.leagueRecord ? `${awayTeam.leagueRecord.wins}-${awayTeam.leagueRecord.losses}` : '';
+                    const homeRecord = homeTeam.leagueRecord ? `${homeTeam.leagueRecord.wins}-${homeTeam.leagueRecord.losses}` : '';
+
+                    const isLive = game.status.abstractGameState === 'Live';
+                    const headerInfo = getGameHeaderInfo(game);
+                    const isPinned = pinnedGames.has(game.gamePk);
+                    const hasAlert = alertGames.has(game.gamePk);
+
+                    card.className = `card game-card ${headerInfo.isFinal ? 'final' : ''} ${isPinned ? 'pinned' : ''}`;
+
+                    const balls = linescore?.balls ?? 0;
+                    const strikes = linescore?.strikes ?? 0;
+                    const outs = linescore?.outs ?? 0;
+
+                    const onFirst = linescore?.offense?.first ? 'on' : '';
+                    const onSecond = linescore?.offense?.second ? 'on' : '';
+                    const onThird = linescore?.offense?.third ? 'on' : '';
+
+                    const basesHtml = isLive ? `
+                        <div class="bases-diamond" title="Runners on base">
+                            <div class="base base-second ${onSecond}"></div>
+                            <div class="base base-third ${onThird}"></div>
+                            <div class="base base-first ${onFirst}"></div>
+                        </div>
+                    ` : '';
+
+                    const countHtml = isLive ? `
+                        <span class="count-details">Balls: ${balls} Strikes: ${strikes}</span>
+                        <span>${outs} Out${outs !== 1 ? 's' : ''}</span>
+                    ` : '';
+
+                    const countdownHtml = headerInfo.isPreview ? `
+                        <span class="game-countdown" data-time="${headerInfo.countdownTarget}">Calculating...</span>
+                    ` : '';
+
+                    card.innerHTML = `
+                        <div class="game-header">
+                            <div class="game-header-left">
+                                <span class="game-status-badge">${headerInfo.badge}</span>
+                                ${countdownHtml}
+                            </div>
+                            <div class="game-header-right">
+                                <div class="game-live-details">
+                                    ${countHtml}
+                                    ${basesHtml}
+                                </div>
+                                <div class="game-actions">
+                                    <button class="icon-btn ${hasAlert ? 'active' : ''}" onclick="togglePushAlert(event, ${game.gamePk})" title="Push Alerts">
+                                        <i class="${hasAlert ? 'fa-solid' : 'fa-regular'} fa-bell"></i>
+                                    </button>
+                                    <button class="icon-btn ${isPinned ? 'active' : ''}" onclick="togglePin(event, ${game.gamePk})" title="Pin Game">
+                                        <i class="fa-solid fa-thumbtack"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="team-row">
+                            <div class="team-info">
+                                <img class="team-logo" src="${getTeamLogoUrl(awayTeam.team.id)}" alt="${awayTeam.team.name}" onerror="this.style.visibility='hidden'">
+                                <div class="team-details">
+                                    <span class="team-name">${awayTeam.team.name}</span>
+                                    <span class="team-record">${awayRecord}</span>
+                                </div>
+                            </div>
+                            <span class="team-score">${awayScore}</span>
+                        </div>
+
+                        <div class="team-row">
+                            <div class="team-info">
+                                <img class="team-logo" src="${getTeamLogoUrl(homeTeam.team.id)}" alt="${homeTeam.team.name}" onerror="this.style.visibility='hidden'">
+                                <div class="team-details">
+                                    <span class="team-name">${homeTeam.team.name}</span>
+                                    <span class="team-record">${homeRecord}</span>
+                                </div>
+                            </div>
+                            <span class="team-score">${homeScore}</span>
+                        </div>
+                    `;
+                    container.appendChild(card);
+                });
+
+                startCountdowns();
+            } catch (err) {
+                container.innerHTML = '<p>Error loading schedule. Please try again.</p>';
+            }
+        }
+
+        /* ---------- Kick‑off ---------- */
+        initCalendar();
+    </script>
+</body>
+</html>
